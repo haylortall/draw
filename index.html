@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>draw something bad</title>
+
+  <!-- preview -->
+  <meta property="og:title" content="draw" />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="preview.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="draw" />
+  <meta name="twitter:image" content="preview.png" />
+
+  <style>
+    :root {
+      --bg: #000000;
+      --ink: #ffffff;
+      --ui: rgba(255,255,255,0.14);
+      --text: #ffffff;
+      --sig: rgba(255,255,255,0.62);
+    }
+
+    body.light {
+      --bg: #ffffff;
+      --ink: #000000;
+      --ui: rgba(0,0,0,0.10);
+      --text: #000000;
+      --sig: rgba(0,0,0,0.56);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+      touch-action: none;
+    }
+
+    body {
+      color: var(--text);
+    }
+
+    canvas {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      background: var(--bg);
+      cursor: crosshair;
+    }
+
+    .topbar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      display: flex;
+      justify-content: space-between;
+      padding: max(14px, env(safe-area-inset-top)) 14px 14px 14px;
+      z-index: 10;
+      pointer-events: none;
+    }
+
+    .bottombar {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      display: flex;
+      justify-content: center;
+      padding: 14px 14px max(26px, env(safe-area-inset-bottom)) 14px;
+      z-index: 10;
+      pointer-events: none;
+    }
+
+    .left,
+    .right,
+    .center {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      pointer-events: auto;
+    }
+
+    button {
+      border: 0;
+      border-radius: 999px;
+      background: var(--ui);
+      color: var(--text);
+      padding: 12px 16px;
+      font-size: 14px;
+      line-height: 1;
+      min-height: 44px;
+      min-width: 44px;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+
+    button:active {
+      transform: scale(0.97);
+    }
+
+    .sig {
+      position: fixed;
+      bottom: max(6px, calc(env(safe-area-inset-bottom) + 2px));
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 11;
+      font-size: 12px;
+      letter-spacing: 0.02em;
+      color: var(--sig);
+      text-align: center;
+      width: max-content;
+      pointer-events: auto;
+    }
+
+    .sig a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .hint {
+      position: fixed;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      color: var(--sig);
+      font-size: 15px;
+      text-align: center;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+
+  <div id="hint" class="hint">draw something bad</div>
+
+  <div class="topbar">
+    <div class="left">
+      <button id="invertBtn">invert</button>
+    </div>
+    <div class="right">
+      <button id="clearBtn">clear</button>
+    </div>
+  </div>
+
+  <div class="bottombar">
+    <div class="center">
+      <button id="saveBtn">save</button>
+    </div>
+  </div>
+
+  <div class="sig">
+    <a href="https://haylortall.github.io">♡ taylor</a>
+  </div>
+
+  <script>
+    const body = document.body;
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+    const invertBtn = document.getElementById('invertBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const saveBtn = document.getElementById('saveBtn');
+    const hint = document.getElementById('hint');
+
+    let drawing = false;
+    let hasDrawn = false;
+
+    function currentInk() {
+      return getComputedStyle(body).getPropertyValue('--ink').trim();
+    }
+
+    function currentBg() {
+      return getComputedStyle(body).getPropertyValue('--bg').trim();
+    }
+
+    function setupCanvas() {
+      const ratio = Math.max(window.devicePixelRatio || 1, 1);
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+
+      const prev = document.createElement('canvas');
+      prev.width = canvas.width;
+      prev.height = canvas.height;
+      const prevCtx = prev.getContext('2d');
+      if (canvas.width && canvas.height) {
+        prevCtx.drawImage(canvas, 0, 0);
+      }
+
+      canvas.width = Math.floor(width * ratio);
+      canvas.height = Math.floor(height * ratio);
+      canvas.style.width = width + 'px';
+      canvas.style.height = height + 'px';
+
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = 3.5;
+      ctx.strokeStyle = currentInk();
+
+      fillBackground();
+
+      if (prev.width && prev.height) {
+        ctx.drawImage(prev, 0, 0, prev.width / ratio, prev.height / ratio, 0, 0, width, height);
+      }
+    }
+
+    function fillBackground() {
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.fillStyle = currentBg();
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.restore();
+      ctx.strokeStyle = currentInk();
+    }
+
+    function getPoint(e) {
+      if (e.touches && e.touches.length) {
+        return {
+          x: e.touches[0].clientX,
+          y: e.touches[0].clientY
+        };
+      }
+      return {
+        x: e.clientX,
+        y: e.clientY
+      };
+    }
+
+    function startDraw(e) {
+      e.preventDefault();
+      drawing = true;
+      hasDrawn = true;
+      hint.classList.add('hidden');
+
+      const p = getPoint(e);
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+    }
+
+    function draw(e) {
+      if (!drawing) return;
+      e.preventDefault();
+
+      const p = getPoint(e);
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+    }
+
+    function endDraw() {
+      drawing = false;
+      ctx.beginPath();
+    }
+
+    function clearCanvas() {
+      fillBackground();
+      hasDrawn = false;
+      hint.classList.remove('hidden');
+    }
+
+    function invertCanvasPreservingDrawing() {
+      body.classList.toggle('light');
+
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imageData.data;
+
+      for (let i = 0; i < data.length; i += 4) {
+        data[i] = 255 - data[i];
+        data[i + 1] = 255 - data[i + 1];
+        data[i + 2] = 255 - data[i + 2];
+      }
+
+      ctx.putImageData(imageData, 0, 0);
+      ctx.strokeStyle = currentInk();
+    }
+
+    async function saveImage() {
+      const dataUrl = canvas.toDataURL('image/png');
+
+      try {
+        const response = await fetch(dataUrl);
+        const blob = await response.blob();
+        const file = new File([blob], 'drawing.png', { type: 'image/png' });
+
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            files: [file],
+            title: 'draw something bad'
+          });
+          return;
+        }
+      } catch (err) {}
+
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = 'drawing.png';
+      link.click();
+    }
+
+    canvas.addEventListener('pointerdown', startDraw);
+    canvas.addEventListener('pointermove', draw);
+    canvas.addEventListener('pointerup', endDraw);
+    canvas.addEventListener('pointerleave', endDraw);
+    canvas.addEventListener('pointercancel', endDraw);
+
+    invertBtn.addEventListener('click', invertCanvasPreservingDrawing);
+    clearBtn.addEventListener('click', clearCanvas);
+    saveBtn.addEventListener('click', saveImage);
+
+    window.addEventListener('resize', setupCanvas);
+
+    setupCanvas();
+  </script>
+</body>
+</html>
